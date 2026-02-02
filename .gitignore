@@ -2,3 +2,4 @@ data/
 .vscode/
 outputs/kansas_boundary.png
 outputs/ssc_sites_KS.png
+outputs/huc12_ssc_sites_ks.png
