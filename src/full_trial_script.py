@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from io import BytesIO
 import pandas as pd
-import json
+import numpy as np
 
 data_dir = Path('data')
 out_dir = Path('outputs')
@@ -228,11 +228,81 @@ print('HUC12 CRS:', huc12_ks.crs)
 print('HUC12 columns:', list(huc12_ks.columns))
 
 # map
-fig, ax = plt.subplots(figsize=(8,8))
-kansas.boundary.plot(ax=ax, linewidth=1)
-huc12_ks.boundary.plot(ax=ax, linewidth=0.4)
-stations_ks.plot(ax=ax, markersize=5, color='black')
+#fig, ax = plt.subplots(figsize=(8,8))
+#kansas.boundary.plot(ax=ax, linewidth=1)
+#huc12_ks.boundary.plot(ax=ax, linewidth=0.4)
+#stations_ks.plot(ax=ax, markersize=5, color='black')
 
-ax.set_title('Kansas: WBD HUC12 + SSC Stations')
-plt.tight_layout()
-plt.savefig(out_dir / 'huc12_ssc_sites_KS.png', dpi=200)
+#ax.set_title('Kansas: WBD HUC12 + SSC Stations')
+#plt.tight_layout()
+#plt.savefig(out_dir / 'huc12_ssc_sites_KS.png', dpi=200)
+
+# quick checks
+## check for valid geometry
+print('Valid geometry count:')
+print(huc12_ks.geometry.is_valid.value_counts())
+## check for unique geometry
+print('Unique geometry check:')
+print(huc12_ks.nunique())
+print('Total geometry count:')
+print(len(huc12_ks))
+# ----------------------------------------------------------------------------------- #
+
+
+
+
+# spatially join SSC points to huc12 polygons and count membership
+# 1) join stations to HUC12 polygons
+stations_huc12 = gpd.sjoin(
+    stations_ks,
+    huc12_ks[['huc12','geometry']],
+    predicate='within',
+    how='left'
+).drop(columns=['index_right'], errors='ignore')
+
+print('Stations with HUC12 assigned:', 
+      stations_huc12['huc12'].notna().sum(), 'of', len(stations_huc12))
+print('Stations missing HUC12:', stations_huc12['huc12'].isna().sum())
+
+# 2) count SSC sites per HUC12
+sites_per_huc = (
+    stations_huc12.groupby('huc12')
+    .size()
+    .rename('n_ssc_sites')
+    .reset_index()
+)
+
+# 3) merge counts back to polygons
+huc12_ks = huc12_ks.merge(sites_per_huc, on='huc12', how='left')
+huc12_ks['n_ssc_sites'] = huc12_ks['n_ssc_sites'].fillna(0).astype(int)
+
+print('HUC12 with >=1 SSC site:', 
+      (huc12_ks['n_ssc_sites'] > 0).sum(), 'of', len(huc12_ks))
+# ----------------------------------------------------------------------------------- #
+
+
+
+
+# compute geometry metrics
+# 1) define analysis CRS for meters
+analysis_crs = 'EPSG:26914' # NAD83 
+
+# 2) reproject polygons to projected CRS for area/length
+huc_proj = huc12_ks.to_crs(analysis_crs).copy()
+
+# 3) geometry metrics
+huc_proj['area_km2'] = huc_proj.geometry.area / 1e6
+huc_proj['perimeter_km'] = huc_proj.geometry.length / 1000.0
+
+# 4) compactness (1 is circle, smaller is elongated/irregular)
+huc_proj['compact'] = (4*np.pi*huc_proj.geometry.area) / (huc_proj.geometry.length**2)
+
+# 5) bring metrics back to WGS84 layer (keep geo in EPSG:4326 for mapping)
+huc12_ks = huc12_ks.merge(
+    huc_proj[['huc12', 'area_km2', 'perimeter_km', 'compact']],
+    on='huc12',
+    how='left'
+)
+
+# quick check
+print(huc12_ks[['area_km2', 'perimeter_km', 'compact']]).describe()
