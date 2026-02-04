@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 import pandas as pd
 import numpy as np
+import zipfile
+import rasterio
+from rasterstats import zonal_stats
 
 data_dir = Path('data')
 out_dir = Path('outputs')
@@ -305,4 +308,125 @@ huc12_ks = huc12_ks.merge(
 )
 
 # quick check
-print(huc12_ks[['area_km2', 'perimeter_km', 'compact']]).describe()
+print(huc12_ks[['area_km2', 'perimeter_km', 'compact']].describe())
+# ----------------------------------------------------------------------------------- #
+
+
+
+
+# make projection-correctness figure
+# 1) pick single huc12 with station
+one_huc = huc12_ks.loc[huc12_ks['n_ssc_sites'] > 0].iloc[0:1].copy()
+
+# 2) WRONG: area in EPSG:4326 (degrees units, not meaningful)
+one_huc_wgs = one_huc.to_crs('EPSG:4326')
+wrong_area = one_huc_wgs.geometry.area.iloc[0]
+
+# 3) CORRECT: area in projected CRS (m^2 to km^2)
+one_huc_proj = one_huc.to_crs(analysis_crs)
+correct_area = (one_huc_proj.geometry.area.iloc[0]) / 1e6
+
+print(f'Example HUC12: {one_huc['huc12'].iloc[0]}')
+print(f'Area computed in EPSG:4326: {wrong_area} <- (degrees^2, meaningless)')
+print(f'Area computed in EPSG:26914: {correct_area} <- (km^2)')
+# ----------------------------------------------------------------------------------- #
+
+
+
+
+# PRISM ppt raster download
+
+# 1) function to download PRISM zip
+def download_prism_ppt(year=2023, res='4km', region='us'):
+    """
+    Downloads PRISM annual precipitation raster via ZIP file
+
+    params:
+        year (int, optional): Defaults to 2023.
+        res (str, optional): Defaults to '4km'.
+    """
+    url = f'https://services.nacse.org/prism/data/public/{res}/ppt/{year}'
+    url = f'https://services.nacse.org/prism/data/get/{region}/{res}/ppt/{year}'
+    out_zip = Path('data') / f'ppt_{res}_{year}_prism.zip'
+
+    if not out_zip.exists():
+        r = requests.get(url, timeout=120)
+        r.raise_for_status()
+        out_zip.write_bytes(r.content)
+
+    return out_zip
+
+# 2) function to extract PRISM raster from zip
+def extract_raster_prism(zip_path):
+    '''
+    Extract raster file (.bil or .tif) from PRISM zip.
+    :param zip_path: zip file path
+    '''
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        names = z.namelist()
+        rast_candidates = [n for n in names if n.lower().endswith(('.bil','.tif'))]
+
+        if not rast_candidates:
+            raise RuntimeError(f'No raster found in {zip_path}')
+        
+        rast_name = rast_candidates[0]
+        out_path = Path('data') / rast_name
+        
+        if not out_path.exists():
+            z.extract(rast_name, path='data')
+            extracted = Path('data') / rast_name
+            if extracted != out_path:
+                extracted.rename(out_path)
+
+    return out_path
+
+# 3) trial run
+prism_zip = download_prism_ppt(year=2023, res='800m')
+prism_rast = extract_raster_prism(prism_zip)
+
+print(f'PRISM raster: {prism_rast}')
+# ----------------------------------------------------------------------------------- #
+
+
+
+
+# zonal mean from prism raster per HUC12 
+# 1) open raster to inspect CRS
+with rasterio.open(prism_rast) as src:
+    rast_crs = src.crs
+    print(f'PRISM CRS: {rast_crs}')
+
+# 2) reproject HUC12 polygons to raster CRS
+huc12_rast_crs = huc12_ks.to_crs(rast_crs)
+
+# 3) zonal stats
+zs = zonal_stats(
+    huc12_rast_crs.geometry,
+    prism_rast,
+    stats=['mean'],
+    nodata=None
+)
+
+# 4) attach to geodataframe
+huc12_ks['ppt_mean'] = [z['mean'] for z in zs]
+
+print(huc12_ks['ppt_mean'].describe())
+# ----------------------------------------------------------------------------------- #
+
+
+
+
+# plot watershed area by PRISM precipitation
+fig, ax = plt.subplots(figsize=(4,6))
+
+ax.scatter(
+    huc12_ks['area_km2'],
+    huc12_ks['ppt_mean'],
+    s=10,
+    alpha=0.5
+)
+ax.set_xlabel('HUC12 Watershed Area (km²)')
+ax.set_ylabel('PRISM PPT Mean (mm)')
+ax.set_title('PRISM Precipitation vs Watershed Area (KS)')
+plt.tight_layout()
+plt.show()
