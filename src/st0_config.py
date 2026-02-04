@@ -1,13 +1,4 @@
-import geopandas as gpd
-import requests
 from pathlib import Path
-import matplotlib.pyplot as plt
-from io import BytesIO
-import pandas as pd
-import numpy as np
-import zipfile
-import rasterio
-from rasterstats import zonal_stats
 
 class Config:
     data_dir: Path = Path('data')
