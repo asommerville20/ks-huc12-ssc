@@ -2,12 +2,6 @@ import geopandas as gpd
 import requests
 from pathlib import Path
 import matplotlib.pyplot as plt
-from io import BytesIO
-import pandas as pd
-import numpy as np
-import zipfile
-import rasterio
-from rasterstats import zonal_stats
 
 from st0_config import data_dir, crs_wgs84, crs_int
 
@@ -116,14 +110,15 @@ def get_wbd_huc12_ks(kansas_gdf):
 
 # attempt to run huc12_clip generation function
 ## read in boundary
-ks_fp = f'{data_dir}/ks_boundary.gpkg'
+ks_fp = data_dir / 'kansas_boundary.gpkg'
 kansas = gpd.read_file(ks_fp, layer="kansas").to_crs(crs_wgs84)
 
 huc12_ks = get_wbd_huc12_ks(kansas)
 
-## save to disk
-huc12_fp = f'{data_dir}/huc12_ks.gpkg'
+# save to disk
+huc12_fp = data_dir / 'huc12_ks.gpkg'
 huc12_ks.to_file(huc12_fp, layer='huc12_ks', driver='gpkg')
+print(f'Saved: {huc12_fp}')
 
 print('HUC12 polygons returned:', len(huc12_ks))
 print('HUC12 CRS:', huc12_ks.crs)
@@ -131,8 +126,8 @@ print('HUC12 columns:', list(huc12_ks.columns))
 
 # map
 ## read in stations
-stations_fp = f'{data_dir}/wqp_ssc_stations.gpkg'
-stations_ks = gpd.read_file(stations_fp, layer="kansas").to_crs(crs_wgs84)
+stations_fp = data_dir / 'wqp_ssc_stations.gpkg'
+stations_ks = gpd.read_file(stations_fp, layer="stations_ks").to_crs(crs_wgs84)
 
 ## plot
 fig, ax = plt.subplots(figsize=(8,8))

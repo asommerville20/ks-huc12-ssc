@@ -2,19 +2,13 @@ import geopandas as gpd
 import requests
 from pathlib import Path
 import matplotlib.pyplot as plt
-from io import BytesIO
-import pandas as pd
-import numpy as np
-import zipfile
-import rasterio
-from rasterstats import zonal_stats
 
 from st0_config import data_dir, crs_wgs84
 
 # set URL and zip destination
 url = 'https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_state_20m.zip'
-shp_zip = f'{data_dir}/cb_2023_us_state_20m.zip'
-ks_fp = f'{data_dir}/ks_boundary'
+shp_zip = data_dir / 'cb_2023_us_state_20m.zip'
+ks_fp = data_dir / 'kansas_boundary.gpkg'
 
 # download step
 if not shp_zip.exists():
@@ -35,7 +29,7 @@ plt.tight_layout()
 plt.show()
 
 # save to disc
-kansas.to_fil(
+kansas.to_file(
     ks_fp,
     layer='kansas',
     driver='GPKG'

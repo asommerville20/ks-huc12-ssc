@@ -1,13 +1,7 @@
 import geopandas as gpd
-import requests
 from pathlib import Path
-import matplotlib.pyplot as plt
 from io import BytesIO
 import pandas as pd
-import numpy as np
-import zipfile
-import rasterio
-from rasterstats import zonal_stats
 
 from st0_config import data_dir, crs_wgs84, pcode
 
@@ -88,7 +82,7 @@ print('Stations columns:', list(stations.columns))
 
 # keep only points in Kansas polygon
 ## read in ks boundary gpkg
-ks_fp = f'{data_dir}/ks_boundary.gpkg'
+ks_fp = data_dir / 'kansas_boundary.gpkg'
 kansas = gpd.read_file(ks_fp, layer='kansas').to_crs(crs_wgs84)
 
 ## spatial join
@@ -98,5 +92,6 @@ stations_ks = gpd.sjoin(stations, kansas[['geometry']],
 print('Stations within Kansas polygon:', len(stations_ks))
 
 # save sites to disk
-stations_fp = f'{data_dir}/wqp_ssc_stations.gpkg'
+stations_fp = data_dir / 'wqp_ssc_stations.gpkg'
 stations_ks.to_file(stations_fp, layer="stations_ks", driver="GPKG")
+print(f'Saved: {stations_fp}')
