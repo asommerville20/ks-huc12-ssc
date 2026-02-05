@@ -1,8 +1,9 @@
 import geopandas as gpd
 from pathlib import Path
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 
-from st0_config import data_dir, crs_wgs84
+from st0_config import data_dir, crs_wgs84, out_dir
 
 # input data from st7
 in_fp = data_dir / 'huc12_ks_ppt.gpkg'
@@ -21,10 +22,10 @@ ax.set_xlabel('HUC12 Watershed Area (km²)')
 ax.set_ylabel('PRISM PPT Mean (mm)')
 ax.set_title('PRISM Precipitation vs Watershed Area (KS)')
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 # 2) map: precipitation gradient (choropleth)
-fig, ax = plt.subplots(figsize=(6,6))
+fig, ax = plt.subplots(figsize=(12,10))
 
 ## polygons colored by ppt_mean
 huc12_ks.plot(
@@ -34,5 +35,11 @@ huc12_ks.plot(
 )
 
 ax.set_title('PRISM Mean Annual Precipitation (mm) by HUC12')
+ax.set_xlabel('Longitude (degrees)')
+ax.set_ylabel('Latitude (degrees)')
+ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f"{x:.1f}°"))
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, pos: f"{y:.1f}°"))
+
 plt.tight_layout()
-plt.show()
+plt.savefig(out_dir / 'ppt_choropleth_map.png', dpi=200)
+#plt.show()

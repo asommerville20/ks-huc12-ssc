@@ -2,8 +2,9 @@ import geopandas as gpd
 import requests
 from pathlib import Path
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 
-from st0_config import data_dir, crs_wgs84, crs_int
+from st0_config import data_dir, crs_wgs84, crs_int, out_dir
 
 def query_arcgis_features(layer_url,
                           where='1=1',
@@ -135,10 +136,15 @@ kansas.boundary.plot(ax=ax, linewidth=1)
 huc12_ks.boundary.plot(ax=ax, linewidth=0.4)
 stations_ks.plot(ax=ax, markersize=5, color='black')
 
-ax.set_title('Kansas: WBD HUC12 + SSC Stations')
+ax.set_title(f'Kansas: WBD HUC12 + SSC Stations ({crs_wgs84})')
+ax.set_xlabel('Longitude (degrees)')
+ax.set_ylabel('Latitude (degrees)')
+ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f"{x:.1f}°"))
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda y, pos: f"{y:.1f}°"))
+
 plt.tight_layout()
-plt.show()
-#plt.savefig(out_dir / 'huc12_ssc_sites_KS.png', dpi=200)
+#plt.show()
+plt.savefig(out_dir / 'huc12_ssc_sites_KS.png', dpi=200)
 
 # quick checks
 ## check for valid geometry
